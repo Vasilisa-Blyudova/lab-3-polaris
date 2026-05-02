@@ -1,0 +1,33 @@
+[project]
+name = "Lab-MLFLOW"
+version = "0.0.0"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.pylint."MAIN"]
+ignore = ["venv", ".venv"]
+persistent = false
+
+[tool.pylint."FORMAT"]
+max-line-length = 120
+
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "broad-exception-caught",
+    "duplicate-code",
+    "invalid-name",
+    "logging-fstring-interpolation",
+    "too-many-arguments",
+    "too-many-instance-attributes",
+    "too-many-locals",
+    "too-many-positional-arguments"
+]
+
+[[tool.mypy.overrides]]
+module = ["mlflow.*", "pandas.*", "sklearn.*", "progressbar.*", "joblib.*", "kagglehub.*"]
+follow_untyped_imports = true
