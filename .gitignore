@@ -9,3 +9,5 @@ logs/*
 mlruns/
 
 .ipynb_checkpoints/
+
+.idea/inspectionProfiles/
