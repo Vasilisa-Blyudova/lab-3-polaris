@@ -45,7 +45,7 @@ rm -rf data/bronze data/silver data/gold mlruns logs/pipeline.log
 docker compose up --build
 ```
 
-The pipeline reads `data/raw`, writes Delta tables under `data/`, writes logs to `logs/`, and writes MLflow metadata/artifacts to `mlruns/`.
+The pipeline downloads the Kaggle source into `data/raw` if it is missing, creates yearly fake batches, writes Delta tables under `data/`, writes logs to `logs/`, and writes MLflow metadata/artifacts to `mlruns/`.
 
 ## How To See The Results
 
@@ -132,7 +132,7 @@ The project uses this Kaggle dataset:
 shubhamsingh42/flight-delay-dataset-2018-2024
 ```
 
-Expected source files:
+Expected source files after download:
 
 ```text
 data/raw/flight_data_2018_2024.csv
@@ -165,7 +165,15 @@ data/raw/flights_2023.csv
 data/raw/flights_2024.csv
 ```
 
-The main pipeline automatically creates missing `flights_*.csv` batches if `flight_data.parquet` or `flight_data_2018_2024.csv` exists. Disable automatic simulation with:
+The main pipeline automatically downloads the Kaggle dataset if the source files are missing. It then creates missing `flights_*.csv` batches from `flight_data.parquet` or `flight_data_2018_2024.csv`.
+
+Disable automatic download with:
+
+```bash
+python -m src.pipeline --no-auto-download-dataset
+```
+
+Disable automatic batch simulation with:
 
 ```bash
 python -m src.pipeline --no-auto-simulate-batches
@@ -226,6 +234,7 @@ python -m src.pipeline --skip-ingest
 python -m src.pipeline --skip-maintenance
 python -m src.pipeline --skip-ml
 python -m src.pipeline --years 2018 2019 2020 2021 2022 2023 2024
+python -m src.pipeline --no-auto-download-dataset
 python -m src.pipeline --no-auto-simulate-batches
 ```
 

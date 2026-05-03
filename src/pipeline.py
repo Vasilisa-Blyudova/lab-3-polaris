@@ -1,6 +1,9 @@
 import argparse
 import logging
+import shutil
 from pathlib import Path
+
+import kagglehub
 
 from src.common.config import (
     BRONZE_PATH,
@@ -21,6 +24,7 @@ from src.ml.models import MLModelTrainer
 from src.scripts.simulate_year_batches import load_source, write_year_batches
 
 LOGGER = logging.getLogger(__name__)
+KAGGLE_DATASET = "shubhamsingh42/flight-delay-dataset-2018-2024"
 
 
 def setup_logging() -> None:
@@ -39,7 +43,6 @@ def yearly_batch_path(data_dir: Path, year: int) -> Path | None:
     candidates = [
         data_dir / f"{year}.csv",
         data_dir / f"flights_{year}.csv",
-        DATA_DIR / f"flights_{year}.csv",
     ]
     for candidate in candidates:
         if candidate.exists():
@@ -62,13 +65,45 @@ def has_kaggle_source(data_dir: Path) -> bool:
     ).exists()
 
 
+def download_kaggle_source(data_dir: Path) -> None:
+    if has_kaggle_source(data_dir):
+        return
+
+    data_dir.mkdir(parents=True, exist_ok=True)
+    LOGGER.info("Downloading Kaggle dataset %s", KAGGLE_DATASET)
+    download_path = Path(kagglehub.dataset_download(KAGGLE_DATASET))
+    copied_files = []
+
+    for source_path in download_path.rglob("*"):
+        if not source_path.is_file():
+            continue
+        if source_path.suffix.lower() not in {".csv", ".parquet", ".html"}:
+            continue
+        target_path = data_dir / source_path.name
+        shutil.copy2(source_path, target_path)
+        copied_files.append(target_path.name)
+
+    if not has_kaggle_source(data_dir):
+        raise FileNotFoundError(
+            "Downloaded Kaggle dataset does not contain flight_data.parquet or flight_data_2018_2024.csv"
+        )
+
+    LOGGER.info("Copied Kaggle source files to %s: %s", data_dir, copied_files)
+
+
 def ensure_yearly_batches(
-    data_dir: Path, years: list[int], auto_simulate: bool = True
+    data_dir: Path,
+    years: list[int],
+    auto_simulate: bool = True,
+    auto_download: bool = True,
 ) -> None:
     existing_years = {year for _, year in discover_yearly_batches(data_dir, years)}
     missing_years = [year for year in years if year not in existing_years]
     if not missing_years:
         return
+
+    if auto_download and not has_kaggle_source(data_dir):
+        download_kaggle_source(data_dir)
 
     if auto_simulate and has_kaggle_source(data_dir):
         LOGGER.info(
@@ -86,8 +121,14 @@ def discover_batches(
     data_dir: Path,
     years: list[int],
     auto_simulate: bool = True,
+    auto_download: bool = True,
 ) -> list[tuple[Path, int]]:
-    ensure_yearly_batches(data_dir, years, auto_simulate=auto_simulate)
+    ensure_yearly_batches(
+        data_dir,
+        years,
+        auto_simulate=auto_simulate,
+        auto_download=auto_download,
+    )
     batches = discover_yearly_batches(data_dir, years)
 
     if not batches and (DATA_DIR / "test_data.csv").exists():
@@ -111,9 +152,15 @@ def run_pipeline(
     run_maintenance: bool = True,
     run_ml: bool = True,
     auto_simulate_batches: bool = True,
+    auto_download_dataset: bool = True,
 ) -> None:
     LOGGER.info("Starting flight delay lakehouse pipeline")
-    batches = discover_batches(raw_dir, years, auto_simulate=auto_simulate_batches)
+    batches = discover_batches(
+        raw_dir,
+        years,
+        auto_simulate=auto_simulate_batches,
+        auto_download=auto_download_dataset,
+    )
     LOGGER.info(
         "Using yearly raw batches: %s",
         [(year, path.name) for path, year in batches],
@@ -168,6 +215,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-maintenance", action="store_true")
     parser.add_argument("--skip-ml", action="store_true")
     parser.add_argument("--no-auto-simulate-batches", action="store_true")
+    parser.add_argument("--no-auto-download-dataset", action="store_true")
     return parser.parse_args()
 
 
@@ -181,6 +229,7 @@ def main() -> None:
         run_maintenance=not args.skip_maintenance,
         run_ml=not args.skip_ml,
         auto_simulate_batches=not args.no_auto_simulate_batches,
+        auto_download_dataset=not args.no_auto_download_dataset,
     )
 
 
